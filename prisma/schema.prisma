@@ -1,0 +1,191 @@
+// Habari Connect AI — database models
+// Run: npm run db:migrate
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  employee
+  manager
+  admin
+}
+
+model User {
+  id            String         @id @default(cuid())
+  firstName     String?
+  lastName      String?
+  email         String         @unique
+  mobileNumber  String?
+  password      String?
+  role          UserRole       @default(employee)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  conversations Conversation[]
+  otpCodes      OtpCode[]
+
+  @@index([role])
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  title     String    @default("New conversation")
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String
+  content        String       @db.Text
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+}
+
+model KnowledgeItem {
+  id                String   @id @default(cuid())
+  title             String
+  category          String
+  content           String   @db.Text
+  sourceUrl         String?
+  isPublished       Boolean  @default(false)
+  isAiVisible       Boolean  @default(true)
+  isEmployeeVisible Boolean  @default(true)
+  createdById       String?
+  updatedById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([category])
+  @@index([isPublished, isAiVisible])
+  @@index([isPublished, isEmployeeVisible])
+}
+
+model SectionItem {
+  id           String   @id @default(cuid())
+  title        String
+  category     String
+  description  String?
+  content      String?  @db.Text
+  imageUrl     String?
+  buttonLabel  String?
+  buttonUrl    String?
+  displayOrder Int      @default(0)
+  isPublished  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([category])
+  @@index([isPublished])
+}
+
+model Resource {
+  id                String   @id @default(cuid())
+  title             String
+  category          String
+  description       String?
+  fileUrl           String?
+  fileType          String?
+  extractedText     String?  @db.Text
+  isPublished       Boolean  @default(false)
+  isAiVisible       Boolean  @default(true)
+  isEmployeeVisible Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([category])
+  @@index([isPublished, isAiVisible])
+  @@index([isPublished, isEmployeeVisible])
+}
+
+model NewsPost {
+  id            String   @id @default(cuid())
+  title         String
+  summary       String?
+  content       String   @db.Text
+  category      String?
+  coverImageUrl String?
+  isPublished   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isPublished])
+}
+
+model QuickContact {
+  id          String   @id @default(cuid())
+  name        String
+  jobTitle    String?
+  department  String?
+  email       String?
+  phone       String?
+  office      String?
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isPublished])
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// Shared People & Culture profiles for the employee intranet.
+/// Do NOT store salary, leave, disciplinary, ID numbers, or home addresses here.
+model PeopleProfile {
+  id           String    @id @default(cuid())
+  firstName    String
+  lastName     String
+  jobTitle     String
+  department   String?
+  office       String?
+  startDate    DateTime?
+  shortIntro   String?
+  bio          String?   @db.Text
+  interests    String?   @db.Text
+  skills       String?   @db.Text
+  email        String?
+  phone        String?
+  manager      String?
+  linkedInUrl  String?
+  birthday     DateTime?
+  imageUrl     String?
+  isNewStarter Boolean   @default(true)
+  isPublished  Boolean   @default(false)
+  showEmail    Boolean   @default(true)
+  showPhone    Boolean   @default(false)
+  showBirthday Boolean   @default(false)
+  showLinkedIn Boolean   @default(true)
+  displayOrder Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([isPublished])
+  @@index([isPublished, isNewStarter])
+  @@index([department])
+  @@index([office])
+  @@index([displayOrder])
+}
