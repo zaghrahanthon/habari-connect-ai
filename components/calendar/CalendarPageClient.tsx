@@ -118,16 +118,27 @@ export default function CalendarPageClient() {
     });
   }, [events, preset, category, department, search, monthAnchor]);
 
+  const upcomingPreview = useMemo(
+    () =>
+      filterCalendarEvents(events, {
+        view: "upcoming",
+        includeCancelled: false,
+      }).slice(0, 5),
+    [events],
+  );
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-          Calendar & Events
-        </h1>
-        <p className="text-sm text-muted sm:text-base">
-          Live Habari company calendar. Updates from Google Sheets appear
-          automatically — no redeploy needed.
-        </p>
+    <div className="mx-auto w-full max-w-7xl space-y-8 px-6 py-8 lg:px-10 lg:py-10">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="max-w-2xl">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            Calendar & Events
+          </h1>
+          <p className="mt-2 text-sm text-muted sm:text-base">
+            See what&apos;s happening across Habari. Updates from Google Sheets
+            appear automatically.
+          </p>
+        </div>
       </header>
 
       <CalendarStatus
@@ -152,13 +163,16 @@ export default function CalendarPageClient() {
       />
 
       {loading && events.length === 0 && (
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="h-28 animate-pulse rounded-2xl border border-border bg-card"
-            />
-          ))}
+        <div className="grid gap-4 lg:grid-cols-12">
+          <div className="space-y-3 lg:col-span-8">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-28 animate-pulse rounded-2xl border border-border bg-card"
+              />
+            ))}
+          </div>
+          <div className="h-64 animate-pulse rounded-2xl border border-border bg-card lg:col-span-4" />
         </div>
       )}
 
@@ -169,19 +183,58 @@ export default function CalendarPageClient() {
       )}
 
       {!error && mode === "list" && (
-        <EventList events={visibleEvents} onSelect={setSelected} />
+        <div className="grid gap-6 lg:grid-cols-12">
+          <div className="lg:col-span-8">
+            <EventList events={visibleEvents} onSelect={setSelected} />
+          </div>
+          <aside className="lg:col-span-4">
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <p className="text-sm font-semibold text-foreground">
+                Upcoming events
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                Next dates across Habari
+              </p>
+              <div className="mt-4">
+                <EventList
+                  events={upcomingPreview}
+                  onSelect={setSelected}
+                  compact
+                />
+              </div>
+            </div>
+          </aside>
+        </div>
       )}
 
       {!error && mode === "calendar" && (
-        <CalendarGrid
-          events={visibleEvents}
-          monthAnchor={monthAnchor}
-          onSelect={setSelected}
-          onMonthChange={(date) => {
-            setMonthAnchor(date);
-            setPreset("month");
-          }}
-        />
+        <div className="grid gap-6 lg:grid-cols-12">
+          <div className="lg:col-span-8">
+            <CalendarGrid
+              events={visibleEvents}
+              monthAnchor={monthAnchor}
+              onSelect={setSelected}
+              onMonthChange={(date) => {
+                setMonthAnchor(date);
+                setPreset("month");
+              }}
+            />
+          </div>
+          <aside className="lg:col-span-4">
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <p className="text-sm font-semibold text-foreground">
+                Upcoming events
+              </p>
+              <div className="mt-4">
+                <EventList
+                  events={upcomingPreview}
+                  onSelect={setSelected}
+                  compact
+                />
+              </div>
+            </div>
+          </aside>
+        </div>
       )}
 
       <EventDetailsModal event={selected} onClose={() => setSelected(null)} />

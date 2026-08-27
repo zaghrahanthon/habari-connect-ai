@@ -185,16 +185,16 @@ export default function ChatInterface({
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto px-4 py-6 custom-scrollbar sm:px-6">
           {isEmpty ? (
-            <div className="mx-auto flex max-w-3xl flex-col items-center pt-8 text-center sm:pt-16">
+            <div className="mx-auto flex max-w-3xl flex-col items-center pt-8 text-center sm:pt-12">
               <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/15">
                 <span className="text-2xl">✨</span>
               </div>
-              <h2 className="text-xl font-semibold text-foreground">
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
                 How can I help you today?
               </h2>
-              <p className="mt-2 max-w-md text-sm text-muted">
-                Ask about HR, policies, learning, news, contacts, or anything
-                work-related at Habari Media.
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">
+                Ask about HR, policies, people, calendar events, news, or
+                website analytics.
               </p>
               {showPromptCards && (
                 <PromptCards

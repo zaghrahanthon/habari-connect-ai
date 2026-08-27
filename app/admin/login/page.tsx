@@ -16,7 +16,8 @@ export default function AdminLoginPage() {
   // Render form only on client — avoids hydration mismatch from browser extensions
   // (e.g. password managers adding fdprocessedid to inputs)
   useEffect(() => {
-    setMounted(true);
+    const id = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(id);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

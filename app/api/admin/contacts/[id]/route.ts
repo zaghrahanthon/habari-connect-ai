@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { contactSchema } from "@/lib/validations/admin";
 import { handleApiError, jsonError } from "@/lib/api-utils";
+import { revalidateEmployeeSection } from "@/lib/adminRevalidate";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -17,6 +18,7 @@ export async function PUT(request: Request, { params }: Params) {
       where: { id },
       data: { ...data, email: data.email || null },
     });
+    revalidateEmployeeSection("quick-contacts");
     return NextResponse.json(contact);
   } catch (e) {
     return handleApiError(e);
@@ -30,6 +32,7 @@ export async function DELETE(_request: Request, { params }: Params) {
   try {
     const { id } = await params;
     await prisma.quickContact.delete({ where: { id } });
+    revalidateEmployeeSection("quick-contacts");
     return NextResponse.json({ success: true });
   } catch (e) {
     return handleApiError(e);

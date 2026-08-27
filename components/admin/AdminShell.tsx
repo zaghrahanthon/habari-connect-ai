@@ -5,40 +5,77 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   BookOpen,
-  Calendar,
-  HeartHandshake,
   LayoutDashboard,
+  Layers,
   LogOut,
   Menu,
-  Newspaper,
   Network,
-  Phone,
   Settings,
-  Upload,
   Users,
   X,
-  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import {
+  getAdminDashboardSections,
+} from "@/lib/dashboardSections";
 
-const ADMIN_NAV = [
-  { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
-  { label: "Knowledge", href: "/admin/knowledge", icon: BookOpen },
-  { label: "Sections", href: "/admin/sections", icon: Layers },
-  { label: "Resources", href: "/admin/resources", icon: Upload },
-  { label: "News", href: "/admin/news", icon: Newspaper },
-  { label: "Contacts", href: "/admin/contacts", icon: Phone },
-  { label: "People & Culture", href: "/admin/people-culture", icon: HeartHandshake },
-  { label: "Calendar", href: "/admin/calendar", icon: Calendar },
+type NavItem = {
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+const SYSTEM_NAV: NavItem[] = [
+  { label: "Knowledge Base", href: "/admin/knowledge", icon: BookOpen },
+  { label: "All Content Blocks", href: "/admin/sections", icon: Layers },
+  { label: "Users / Admins", href: "/admin/users", icon: Users },
   { label: "Network Access", href: "/admin/network-access", icon: Network },
-  { label: "Users", href: "/admin/users", icon: Users },
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
+
+function NavLink({
+  item,
+  pathname,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  onNavigate: () => void;
+}) {
+  const Icon = item.icon;
+  const active =
+    item.href === "/admin/dashboard"
+      ? pathname === item.href
+      : pathname.startsWith(item.href);
+
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      className={cn(
+        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+        active
+          ? "bg-accent/15 text-accent-hover"
+          : "text-muted hover:bg-card-hover hover:text-foreground",
+      )}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="truncate">{item.label}</span>
+    </Link>
+  );
+}
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  const contentSections = getAdminDashboardSections().filter(
+    (s) => s.adminGroup === "content",
+  );
+  const dataSections = getAdminDashboardSections().filter(
+    (s) => s.adminGroup === "data",
+  );
 
   const nav = (
     <>
@@ -56,27 +93,81 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <X className="h-5 w-5" />
         </button>
       </div>
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {ADMIN_NAV.map((item) => {
-          const Icon = item.icon;
-          const active = pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                active
-                  ? "bg-accent/15 text-accent-hover"
-                  : "text-muted hover:bg-card-hover hover:text-foreground",
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 space-y-4 overflow-y-auto p-3">
+        <div className="space-y-1">
+          <NavLink
+            item={{
+              label: "Dashboard",
+              href: "/admin/dashboard",
+              icon: LayoutDashboard,
+            }}
+            pathname={pathname}
+            onNavigate={() => setOpen(false)}
+          />
+          <Link
+            href="/dashboard"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-card-hover hover:text-foreground"
+          >
+            View employee dashboard
+          </Link>
+        </div>
+
+        <div>
+          <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted">
+            Content
+          </p>
+          <div className="space-y-0.5">
+            {contentSections.map((section) => (
+              <NavLink
+                key={section.key}
+                item={{
+                  label: section.title,
+                  href: section.adminPath,
+                  icon: section.icon,
+                }}
+                pathname={pathname}
+                onNavigate={() => setOpen(false)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted">
+            Data
+          </p>
+          <div className="space-y-0.5">
+            {dataSections.map((section) => (
+              <NavLink
+                key={section.key}
+                item={{
+                  label: section.title,
+                  href: section.adminPath,
+                  icon: section.icon,
+                }}
+                pathname={pathname}
+                onNavigate={() => setOpen(false)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted">
+            System
+          </p>
+          <div className="space-y-0.5">
+            {SYSTEM_NAV.map((item) => (
+              <NavLink
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                onNavigate={() => setOpen(false)}
+              />
+            ))}
+          </div>
+        </div>
       </nav>
       <div className="border-t border-border p-4">
         <button
@@ -93,9 +184,12 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="flex min-h-screen bg-background">
-      {open && (
-        <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={() => setOpen(false)} />
-      )}
+      {open ? (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          onClick={() => setOpen(false)}
+        />
+      ) : null}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-sidebar lg:flex">
         {nav}
       </aside>
@@ -117,9 +211,13 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="text-sm font-medium text-muted">Administration</span>
+          <span className="text-sm font-medium text-muted">
+            Manage Habari Connect
+          </span>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          {children}
+        </main>
       </div>
     </div>
   );

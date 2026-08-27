@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { sectionSchema } from "@/lib/validations/admin";
 import { handleApiError } from "@/lib/api-utils";
+import { revalidateByCategory } from "@/lib/adminRevalidate";
 
 export async function GET(request: Request) {
   const { error } = await requireAdmin();
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
   try {
     const data = sectionSchema.parse(await request.json());
     const item = await prisma.sectionItem.create({ data });
+    revalidateByCategory(item.category);
     return NextResponse.json(item, { status: 201 });
   } catch (e) {
     return handleApiError(e);

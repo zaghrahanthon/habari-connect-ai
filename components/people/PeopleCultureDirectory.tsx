@@ -2,11 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import PeopleProfileCard from "@/components/people/PeopleProfileCard";
+import EmptyState from "@/components/layout/EmptyState";
+import { SectionTitle } from "@/components/layout/SectionCard";
+import SectionCard from "@/components/layout/SectionCard";
+import { Skeleton } from "@/components/layout/Skeleton";
 import {
   PEOPLE_DEPARTMENTS,
   PEOPLE_OFFICES,
 } from "@/lib/peopleConstants";
 import type { PublicPeopleProfile } from "@/lib/peopleHelpers";
+import { Users } from "lucide-react";
 
 export default function PeopleCultureDirectory() {
   const [profiles, setProfiles] = useState<PublicPeopleProfile[]>([]);
@@ -79,7 +84,42 @@ export default function PeopleCultureDirectory() {
   }, [profiles, q, department, office]);
 
   return (
-    <div className="mt-10 space-y-14">
+    <div className="mt-8 space-y-10">
+      <SectionCard padding="sm" className="!p-3 sm:!p-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search people…"
+            className="rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition-colors focus:border-accent"
+          />
+          <select
+            value={department}
+            onChange={(e) => setDepartment(e.target.value)}
+            className="rounded-xl border border-border bg-background px-4 py-2.5 text-sm"
+          >
+            <option value="">All departments</option>
+            {PEOPLE_DEPARTMENTS.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+          <select
+            value={office}
+            onChange={(e) => setOffice(e.target.value)}
+            className="rounded-xl border border-border bg-background px-4 py-2.5 text-sm"
+          >
+            <option value="">All offices</option>
+            {PEOPLE_OFFICES.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        </div>
+      </SectionCard>
+
       {error ? (
         <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           {error}
@@ -87,25 +127,26 @@ export default function PeopleCultureDirectory() {
       ) : null}
 
       <section>
-        <h2 className="text-xl font-semibold text-foreground">
-          Meet Our New Starters
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          Say hello to the newest members of the Habari team.
-        </p>
+        <SectionTitle
+          title="New to Habari"
+          description="Say hello to the newest members of the Habari team."
+        />
 
         {loading ? (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-72 animate-pulse rounded-2xl bg-card" />
+              <Skeleton key={i} className="h-72" />
             ))}
           </div>
         ) : newStarters.length === 0 ? (
-          <p className="mt-6 text-sm text-muted">
-            No new starters are published right now.
-          </p>
+          <EmptyState
+            compact
+            icon={<Users className="h-5 w-5" />}
+            title="No new starters right now"
+            description="Published new-starter profiles will appear here."
+          />
         ) : (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {newStarters.map((profile) => (
               <PeopleProfileCard
                 key={profile.id}
@@ -119,60 +160,26 @@ export default function PeopleCultureDirectory() {
       </section>
 
       <section>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">Our People</h2>
-            <p className="mt-1 text-sm text-muted">
-              Browse everyone with a published People & Culture profile.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by name or role…"
-            className="rounded-xl border border-border bg-card px-4 py-2.5 text-sm sm:col-span-1"
-          />
-          <select
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-            className="rounded-xl border border-border bg-card px-4 py-2.5 text-sm"
-          >
-            <option value="">All departments</option>
-            {PEOPLE_DEPARTMENTS.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-          <select
-            value={office}
-            onChange={(e) => setOffice(e.target.value)}
-            className="rounded-xl border border-border bg-card px-4 py-2.5 text-sm"
-          >
-            <option value="">All offices</option>
-            {PEOPLE_OFFICES.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SectionTitle
+          title="Our People"
+          description="Browse everyone with a published People & Culture profile."
+        />
 
         {loading ? (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-56 animate-pulse rounded-2xl bg-card" />
+              <Skeleton key={i} className="h-56" />
             ))}
           </div>
         ) : filteredPeople.length === 0 ? (
-          <p className="mt-6 text-sm text-muted">
-            No published profiles match your filters.
-          </p>
+          <EmptyState
+            compact
+            icon={<Users className="h-5 w-5" />}
+            title="No profiles found"
+            description="Try changing your search or filters."
+          />
         ) : (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredPeople.map((profile) => (
               <PeopleProfileCard
                 key={profile.id}

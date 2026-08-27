@@ -1,4 +1,8 @@
 import Link from "next/link";
+import SectionHeader from "@/components/ui/SectionHeader";
+import ResourceRow from "@/components/ui/ResourceRow";
+import { KnowledgeBody } from "@/components/ui/KnowledgeBody";
+import { Sparkles } from "lucide-react";
 
 export type PeopleCultureKnowledgeItem = {
   id: string;
@@ -40,56 +44,60 @@ export default function PeopleCultureKnowledge({
   if (!hasContent) return null;
 
   return (
-    <div className="mt-14 space-y-10">
+    <div className="mt-10 space-y-8">
       {sections.length > 0 ? (
-        <section className="space-y-4">
-          {sections.map((item) => (
-            <article
-              key={item.id}
-              className="rounded-2xl border border-border bg-card p-6"
-            >
-              <h2 className="text-lg font-semibold text-foreground">
-                {item.title}
-              </h2>
-              {item.description ? (
-                <p className="mt-2 text-sm text-muted">{item.description}</p>
-              ) : null}
-              {item.content ? (
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-                  {item.content}
-                </p>
-              ) : null}
-              {item.buttonLabel && item.buttonUrl ? (
-                <a
-                  href={item.buttonUrl}
-                  className="mt-4 inline-flex text-sm font-medium text-accent hover:text-accent-hover"
-                >
-                  {item.buttonLabel} →
-                </a>
-              ) : null}
-            </article>
-          ))}
+        <section>
+          <SectionHeader
+            title="Culture & community"
+            description="Stories and updates from across Habari."
+          />
+          <div className="grid gap-4 lg:grid-cols-2">
+            {sections.map((item) => (
+              <article
+                key={item.id}
+                className="rounded-2xl border border-border bg-card p-5"
+              >
+                <h3 className="text-lg font-semibold text-foreground">
+                  {item.title}
+                </h3>
+                {item.description ? (
+                  <p className="mt-2 text-sm text-muted">{item.description}</p>
+                ) : null}
+                {item.content ? (
+                  <div className="mt-3">
+                    <KnowledgeBody content={item.content} />
+                  </div>
+                ) : null}
+                {item.buttonLabel && item.buttonUrl ? (
+                  <a
+                    href={item.buttonUrl}
+                    className="mt-4 inline-flex text-sm font-medium text-accent hover:text-accent-hover"
+                  >
+                    {item.buttonLabel} →
+                  </a>
+                ) : null}
+              </article>
+            ))}
+          </div>
         </section>
       ) : null}
 
       {knowledge.length > 0 ? (
         <section>
-          <h2 className="text-xl font-semibold text-foreground">
-            Culture & Information
-          </h2>
-          <p className="mt-1 text-sm text-muted">
-            Published People & Culture knowledge for the Habari team.
-          </p>
-          <div className="mt-5 space-y-4">
+          <SectionHeader
+            title="Culture & information"
+            description="Published People & Culture guidance."
+          />
+          <div className="mx-auto max-w-4xl space-y-4">
             {knowledge.map((item) => (
               <article
                 key={item.id}
-                className="rounded-2xl border border-border bg-card p-6"
+                className="rounded-2xl border border-border bg-card p-5"
               >
                 <h3 className="font-semibold text-foreground">{item.title}</h3>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted">
-                  {item.content}
-                </p>
+                <div className="mt-3">
+                  <KnowledgeBody content={item.content} />
+                </div>
               </article>
             ))}
           </div>
@@ -98,33 +106,40 @@ export default function PeopleCultureKnowledge({
 
       {resources.length > 0 ? (
         <section>
-          <h2 className="text-xl font-semibold text-foreground">Resources</h2>
-          <p className="mt-1 text-sm text-muted">
-            Useful People & Culture documents and files.
-          </p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {resources.map((r) => (
-              <Link
-                key={r.id}
-                href={r.fileUrl ? `/api/resources/${r.id}/download` : "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-xl border border-border bg-card p-4 transition-colors hover:border-accent/40"
-              >
-                <p className="font-medium text-foreground">{r.title}</p>
-                {r.description ? (
-                  <p className="mt-1 text-xs text-muted">{r.description}</p>
-                ) : null}
-                {r.fileType ? (
-                  <p className="mt-2 text-xs uppercase text-accent">
-                    {r.fileType}
-                  </p>
-                ) : null}
-              </Link>
+          <SectionHeader title="Related resources" />
+          <div className="mx-auto max-w-4xl space-y-2">
+            {resources.map((item) => (
+              <ResourceRow
+                key={item.id}
+                title={item.title}
+                description={item.description}
+                fileType={item.fileType}
+                href={
+                  item.fileUrl
+                    ? `/api/resources/${item.id}/download`
+                    : "#"
+                }
+              />
             ))}
           </div>
         </section>
       ) : null}
+
+      <div className="rounded-2xl border border-border bg-card p-5 sm:flex sm:items-center sm:justify-between">
+        <div>
+          <p className="font-semibold text-foreground">Ask Habari AI</p>
+          <p className="mt-1 text-sm text-muted">
+            Looking for someone or a culture topic? Ask Habari AI.
+          </p>
+        </div>
+        <Link
+          href="/chat?prompt=Help%20me%20find%20someone%20in%20People%20%26%20Culture"
+          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover sm:mt-0"
+        >
+          <Sparkles className="h-4 w-4" />
+          Ask Habari AI
+        </Link>
+      </div>
     </div>
   );
 }

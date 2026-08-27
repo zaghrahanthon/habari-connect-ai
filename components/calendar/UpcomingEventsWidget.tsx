@@ -65,12 +65,17 @@ export default function UpcomingEventsWidget() {
   }, []);
 
   return (
-    <section className="mt-8 rounded-2xl border border-border bg-card p-6">
+    <section className="h-full rounded-2xl border border-border bg-card p-6">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-foreground">Upcoming Events</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">
+            Upcoming Events
+          </h2>
+          <p className="mt-0.5 text-xs text-muted">What’s next at Habari</p>
+        </div>
         <Link
           href="/dashboard/calendar"
-          className="text-sm font-medium text-accent hover:text-accent-hover"
+          className="text-sm font-medium text-accent transition-colors hover:text-accent-hover"
         >
           View Calendar
         </Link>
@@ -95,7 +100,7 @@ export default function UpcomingEventsWidget() {
 
       {!loading && !error && events.length === 0 && (
         <p className="mt-4 text-sm text-muted">
-          No upcoming events have been added to the company calendar.
+          No upcoming events are scheduled right now.
         </p>
       )}
 

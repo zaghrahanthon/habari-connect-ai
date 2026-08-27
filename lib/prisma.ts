@@ -25,7 +25,9 @@ function isClientReady(client: PrismaClient): boolean {
     typeof client.resource !== "undefined" &&
     typeof client.newsPost !== "undefined" &&
     typeof client.quickContact !== "undefined" &&
-    typeof client.peopleProfile !== "undefined"
+    typeof client.peopleProfile !== "undefined" &&
+    typeof client.analyticsProperty !== "undefined" &&
+    typeof client.analyticsReport !== "undefined"
   );
 }
 

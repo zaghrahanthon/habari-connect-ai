@@ -189,3 +189,37 @@ model PeopleProfile {
   @@index([office])
   @@index([displayOrder])
 }
+
+/// Configured GA4 properties available to office-network employees.
+model AnalyticsProperty {
+  id           String   @id @default(cuid())
+  propertyId   String   @unique
+  name         String
+  brand        String?
+  websiteUrl   String?
+  description  String?
+  isActive     Boolean  @default(true)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([displayOrder])
+}
+
+/// Shared internal analytics reports (anonymous office access — not per-employee).
+/// TODO: Personal/private saved reports require individual employee authentication.
+model AnalyticsReport {
+  id         String   @id @default(cuid())
+  name       String
+  propertyId String
+  startDate  DateTime
+  endDate    DateTime
+  reportData Json
+  aiSummary  String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([propertyId])
+  @@index([createdAt])
+}

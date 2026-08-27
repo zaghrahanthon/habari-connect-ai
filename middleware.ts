@@ -31,6 +31,7 @@ function isEmployeeProtectedPath(pathname: string): boolean {
   if (pathname.startsWith("/api/calendar/")) return true;
   if (pathname === "/api/contacts") return true;
   if (pathname.startsWith("/api/people-culture")) return true;
+  if (pathname.startsWith("/api/analytics")) return true;
   if (pathname.startsWith("/api/resources/")) return true;
   if (pathname.startsWith("/uploads/")) return true;
   return false;
@@ -157,6 +158,8 @@ export const config = {
     "/api/contacts",
     "/api/people-culture",
     "/api/people-culture/:path*",
+    "/api/analytics",
+    "/api/analytics/:path*",
     "/api/resources/:path*",
     "/admin",
     "/admin/:path*",

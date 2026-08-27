@@ -6,6 +6,7 @@ import { peopleProfileSchema } from "@/lib/validations/admin";
 import { toPeopleProfileData } from "@/lib/peopleProfileData";
 import { deletePeopleImageIfUnused } from "@/lib/peopleImageStorage";
 import { handleApiError, jsonError } from "@/lib/api-utils";
+import { revalidateEmployeeSection } from "@/lib/adminRevalidate";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -52,6 +53,7 @@ export async function PATCH(request: Request, { params }: Params) {
       await deletePeopleImageIfUnused(existing.imageUrl, id);
     }
 
+    revalidateEmployeeSection("people-culture");
     return NextResponse.json(profile);
   } catch (e) {
     return handleApiError(e);
@@ -73,6 +75,7 @@ export async function DELETE(_request: Request, { params }: Params) {
     await prisma.peopleProfile.delete({ where: { id } });
     await deletePeopleImageIfUnused(existing.imageUrl);
 
+    revalidateEmployeeSection("people-culture");
     return NextResponse.json({ success: true });
   } catch (e) {
     return handleApiError(e);

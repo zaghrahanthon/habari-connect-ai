@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { knowledgeSchema } from "@/lib/validations/admin";
-import { handleApiError, jsonError } from "@/lib/api-utils";
+import { handleApiError } from "@/lib/api-utils";
+import { revalidateByCategory } from "@/lib/adminRevalidate";
 
 export async function GET() {
   const { error } = await requireAdmin();
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
       },
     });
 
+    revalidateByCategory(item.category);
     return NextResponse.json(item, { status: 201 });
   } catch (e) {
     return handleApiError(e, "Failed to create knowledge item");

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ExternalLink, RefreshCw } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
+import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
 import type { CalendarConnectionStatus } from "@/lib/calendar/types";
 
 const SHEET_URL =
@@ -48,15 +49,17 @@ export default function AdminCalendarPage() {
   return (
     <AdminShell>
       <div className="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6">
-        <header className="space-y-2">
-          <h1 className="text-2xl font-semibold text-foreground">
-            Company Calendar
-          </h1>
-          <p className="text-sm text-muted">
-            The Google Sheet is the source of truth. Edit events there — Habari
-            Connect refreshes automatically (no redeploy).
-          </p>
-        </header>
+        <AdminSectionHeader
+          title="Calendar & Events"
+          description="Events are managed in the connected Google Sheet."
+          employeePath="/dashboard/calendar"
+        />
+
+        <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted">
+          The Google Sheet is the source of truth. Edit events there — Habari
+          Connect refreshes automatically (no redeploy). Do not duplicate event
+          management inside Habari Connect.
+        </div>
 
         <div className="flex flex-wrap gap-3">
           <button

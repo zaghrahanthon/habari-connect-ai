@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { contactSchema } from "@/lib/validations/admin";
 import { handleApiError } from "@/lib/api-utils";
+import { revalidateEmployeeSection } from "@/lib/adminRevalidate";
 
 export async function GET() {
   const { error } = await requireAdmin();
@@ -27,6 +28,7 @@ export async function POST(request: Request) {
     const contact = await prisma.quickContact.create({
       data: { ...data, email: data.email || null },
     });
+    revalidateEmployeeSection("quick-contacts");
     return NextResponse.json(contact, { status: 201 });
   } catch (e) {
     return handleApiError(e);

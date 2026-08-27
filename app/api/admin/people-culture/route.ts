@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { peopleProfileSchema } from "@/lib/validations/admin";
 import { toPeopleProfileData } from "@/lib/peopleProfileData";
 import { handleApiError, jsonError } from "@/lib/api-utils";
+import { revalidateEmployeeSection } from "@/lib/adminRevalidate";
 
 export async function GET(request: Request) {
   const office = await requireOfficeNetwork("/api/admin/people-culture");
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
     const profile = await prisma.peopleProfile.create({
       data: toPeopleProfileData(data),
     });
+    revalidateEmployeeSection("people-culture");
     return NextResponse.json(profile, { status: 201 });
   } catch (e) {
     return handleApiError(e);

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AdminShell from "@/components/admin/AdminShell";
+import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
 import { PublishBadge } from "@/components/admin/StatusBadge";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import PeopleAvatar from "@/components/people/PeopleAvatar";
@@ -12,6 +13,7 @@ import {
 } from "@/lib/peopleConstants";
 import { fullName, initials } from "@/lib/peopleHelpers";
 import { formatPeopleDate } from "@/lib/peopleHelpers";
+import CategorySectionManager from "@/components/admin/CategorySectionManager";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
 type AdminPeopleProfile = {
@@ -105,24 +107,20 @@ export default function AdminPeopleCulturePage() {
   return (
     <AdminShell>
       <div className="mx-auto max-w-6xl">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">
-              People & Culture
-            </h1>
-            <p className="mt-1 text-sm text-muted">
-              Create and publish employee / new-starter profiles for the office
-              intranet.
-            </p>
-          </div>
-          <Link
-            href="/admin/people-culture/new"
-            className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover"
-          >
-            <Plus className="h-4 w-4" />
-            Add Employee Profile
-          </Link>
-        </div>
+        <AdminSectionHeader
+          title="People & Culture"
+          description="Meet the people behind Habari Media."
+          employeePath="/dashboard/people-culture"
+          actions={
+            <Link
+              href="/admin/people-culture/new"
+              className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover"
+            >
+              <Plus className="h-4 w-4" />
+              Add profile
+            </Link>
+          }
+        />
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <input
@@ -292,6 +290,22 @@ export default function AdminPeopleCulturePage() {
         onCancel={() => setDeleteId(null)}
         onConfirm={() => void remove()}
       />
+
+      <div className="mx-auto mt-12 max-w-6xl border-t border-border pt-10">
+        <h2 className="text-xl font-semibold text-foreground">
+          Culture & information
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Articles and highlighted blocks also shown on the employee People &amp;
+          Culture page.
+        </p>
+        <div className="mt-6">
+          <CategorySectionManager
+            category="People & Culture"
+            sectionTitle="People & Culture"
+          />
+        </div>
+      </div>
     </AdminShell>
   );
 }

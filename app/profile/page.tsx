@@ -10,8 +10,11 @@ export default function ProfilePage() {
   const [userName, setUserName] = useState("Sarah");
 
   useEffect(() => {
-    const stored = localStorage.getItem("habari_user_name");
-    if (stored) setUserName(stored);
+    const id = window.setTimeout(() => {
+      const stored = localStorage.getItem("habari_user_name");
+      if (stored) setUserName(stored);
+    }, 0);
+    return () => window.clearTimeout(id);
   }, []);
 
   return (

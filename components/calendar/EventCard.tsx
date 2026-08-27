@@ -17,9 +17,14 @@ const STATUS_STYLES: Record<CalendarEvent["status"], string> = {
 type EventCardProps = {
   event: CalendarEvent;
   onSelect: (event: CalendarEvent) => void;
+  compact?: boolean;
 };
 
-export default function EventCard({ event, onSelect }: EventCardProps) {
+export default function EventCard({
+  event,
+  onSelect,
+  compact = false,
+}: EventCardProps) {
   const timeLabel = formatDisplayTime(event.startTime, event.allDay);
   const endTimeLabel =
     !event.allDay && event.endTime
@@ -31,7 +36,8 @@ export default function EventCard({ event, onSelect }: EventCardProps) {
       type="button"
       onClick={() => onSelect(event)}
       className={cn(
-        "w-full rounded-2xl border border-border bg-card p-4 text-left transition-colors hover:border-accent/40 hover:bg-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
+        "w-full rounded-2xl border border-border bg-card text-left transition-colors hover:border-accent/40 hover:bg-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
+        compact ? "p-3" : "p-4",
         event.status === "cancelled" && "opacity-70",
       )}
     >

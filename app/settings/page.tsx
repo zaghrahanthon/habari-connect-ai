@@ -9,8 +9,11 @@ export default function SettingsPage() {
   const [darkMode] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem("habari_user_name");
-    if (stored) setUserName(stored);
+    const id = window.setTimeout(() => {
+      const stored = localStorage.getItem("habari_user_name");
+      if (stored) setUserName(stored);
+    }, 0);
+    return () => window.clearTimeout(id);
   }, []);
 
   const handleSave = (e: React.FormEvent) => {

@@ -22,20 +22,26 @@ export default function DashboardShell({
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Mobile top bar */}
         <header className="flex items-center gap-3 border-b border-border px-4 py-3 lg:hidden">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="rounded-lg p-2 text-muted hover:bg-card hover:text-foreground"
+            className="rounded-xl p-2 text-muted transition-colors hover:bg-card hover:text-foreground"
             aria-label="Open menu"
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="text-sm font-semibold">Habari Connect AI</span>
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              Habari Connect
+            </p>
+            <p className="text-[11px] text-muted">Internal platform</p>
+          </div>
         </header>
 
-        <main className={cn("flex-1 overflow-y-auto custom-scrollbar", className)}>
+        <main
+          className={cn("flex-1 overflow-y-auto custom-scrollbar", className)}
+        >
           {children}
         </main>
       </div>

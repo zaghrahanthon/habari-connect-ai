@@ -14,6 +14,7 @@ import {
 import { appendVerifiedDownloadSection } from "@/lib/chat-resources";
 import { getCalendarContextForChat } from "@/lib/calendarQuery";
 import { getPeopleContextForChat } from "@/lib/peopleQuery";
+import { getAnalyticsContextForChat } from "@/lib/analyticsAi";
 import { todayDateString } from "@/lib/calendar/dateUtils";
 import { requireOfficeNetwork } from "@/lib/networkAccess";
 import { checkAiRateLimit } from "@/lib/aiRateLimit";
@@ -26,11 +27,11 @@ Employees are not individually authenticated. Never assume the user’s real ide
 TODO: Personal or confidential functionality requires individual authentication.
 
 CRITICAL — source of truth:
-- Answer ONLY from Habari Connect dashboard content provided below (Knowledge, Sections, News, Quick contacts, PDFs), published People & Culture profiles when supplied, and, when supplied, live company calendar data.
+- Answer ONLY from Habari Connect dashboard content provided below (Knowledge, Sections, News, Quick contacts, PDFs), published People & Culture profiles when supplied, live Google Analytics data when supplied, and, when supplied, live company calendar data.
 - Do NOT use the public internet or habarimedia.com. Do NOT invent facts outside the provided content.
-- NEVER invent names, emails, phone numbers, URLs, procedures, events, locations, organisers, registration links, dates, or times.
+- NEVER invent names, emails, phone numbers, URLs, procedures, events, locations, organisers, registration links, dates, times, traffic, users, sessions, page views, engagement rates, or conversions.
 - Do NOT add generic steps unless they are explicitly written in the admin content below.
-- If dashboard, people, or calendar content below answers the question, quote or paraphrase it only — do not expand with assumed details.
+- If dashboard, people, analytics, or calendar content below answers the question, quote or paraphrase it only — do not expand with assumed details.
 
 People & Culture rules (when people profiles are supplied):
 - Only use published People & Culture profiles from the context below.
@@ -38,6 +39,13 @@ People & Culture rules (when people profiles are supplied):
 - Do not mention birthdays unless they appear in the supplied context.
 - Do not discuss salary, leave balances, disciplinary matters, or private HR information.
 - If no matching person is available, say you could not find that person in the published People & Culture profiles.
+
+Google Analytics rules (when analytics data is supplied):
+- Analyse only the supplied Google Analytics data.
+- Never invent traffic, user, engagement, page-view or conversion values.
+- Clearly distinguish facts from interpretation.
+- When comparing periods, state absolute values and percentage difference when available.
+- If requested information was not returned by Google Analytics, say it is not available in the current report.
 
 Calendar rules (when calendar information is supplied):
 - Use Africa/Johannesburg as the company timezone.
@@ -50,6 +58,7 @@ How to format replies:
 - Search ALL Knowledge items for every question and answer from any matching item.
 - Search Quick contacts when the user asks who to email, call, or contact.
 - Search People & Culture profiles for questions about staff, teams, departments, offices, new starters, or roles.
+- Use Google Analytics context for website traffic, channels, pages, devices, and performance questions.
 - Search Sections, News, and PDF excerpts when they match the question.
 - Use live calendar context for event/date/schedule questions.
 - Only use Employee Handbook / PDF content when the question is about policies, procedures, HR rules, or when the user explicitly mentions the handbook.
@@ -59,7 +68,7 @@ How to format replies:
 
 If matching content is provided below, use it as your primary source.
 
-Only if nothing relevant is provided below, the leave baseline does not cover the question, and no calendar or people context applies, respond exactly with:
+Only if nothing relevant is provided below, the leave baseline does not cover the question, and no calendar, people, or analytics context applies, respond exactly with:
 "I don't have that information in the Habari Connect knowledge base yet. You can ask an admin to add it."
 
 Leave baseline (only when leave is asked and not covered in admin content below):
@@ -123,11 +132,13 @@ export async function POST(request: Request) {
     const searchQuery = buildSearchQuery(messages);
     const offerDownloads = shouldOfferDownloads(searchQuery);
 
-    const [searchResult, calendarContext, peopleContext] = await Promise.all([
-      searchKnowledgeForChat(searchQuery),
-      getCalendarContextForChat(searchQuery),
-      getPeopleContextForChat(searchQuery),
-    ]);
+    const [searchResult, calendarContext, peopleContext, analyticsContext] =
+      await Promise.all([
+        searchKnowledgeForChat(searchQuery),
+        getCalendarContextForChat(searchQuery),
+        getPeopleContextForChat(searchQuery),
+        getAnalyticsContextForChat(searchQuery),
+      ]);
 
     if (searchResult.items.length === 0) {
       console.warn(
@@ -148,7 +159,8 @@ export async function POST(request: Request) {
     const contentLoaded =
       hasSearchContent(searchResult) ||
       calendarContext.relevant ||
-      peopleContext.relevant;
+      peopleContext.relevant ||
+      analyticsContext.relevant;
     const pdfLoaded = hasPdfContent(searchResult);
 
     const knowledgeHeader =
@@ -171,8 +183,12 @@ export async function POST(request: Request) {
       ? `\n\n${peopleContext.context}`
       : "";
 
+    const analyticsBlock = analyticsContext.relevant
+      ? `\n\n${analyticsContext.context}`
+      : "";
+
     const systemPrompt = contentLoaded
-      ? `${BASE_INSTRUCTIONS}${handbookNote}\n\n${knowledgeHeader}\n${dbKnowledge}${peopleBlock}${calendarBlock}`
+      ? `${BASE_INSTRUCTIONS}${handbookNote}\n\n${knowledgeHeader}\n${dbKnowledge}${peopleBlock}${analyticsBlock}${calendarBlock}`
       : `${BASE_INSTRUCTIONS}\n\nNo matching published content was found. Use baseline rules only, or say the information is not available yet.`;
 
     const openai = new OpenAI({ apiKey });

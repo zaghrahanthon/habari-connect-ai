@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import DashboardShell from "@/components/DashboardShell";
 import PeopleProfileDetail from "@/components/people/PeopleProfileDetail";
+import PageContainer from "@/components/layout/PageContainer";
+import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import type { PublicPeopleProfile } from "@/lib/peopleHelpers";
-import { ArrowLeft } from "lucide-react";
 
 export default function PeopleCultureDetailPage() {
   const params = useParams<{ id: string }>();
@@ -43,14 +43,13 @@ export default function PeopleCultureDetailPage() {
 
   return (
     <DashboardShell>
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
-        <Link
-          href="/dashboard/people-culture"
-          className="inline-flex items-center gap-2 text-sm text-muted hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to People & Culture
-        </Link>
+      <PageContainer>
+        <Breadcrumbs
+          items={[
+            { label: "People & Culture", href: "/dashboard/people-culture" },
+            { label: profile?.fullName ?? "Profile" },
+          ]}
+        />
 
         <div className="mt-6">
           {loading ? (
@@ -63,7 +62,7 @@ export default function PeopleCultureDetailPage() {
           ) : null}
           {profile ? <PeopleProfileDetail profile={profile} /> : null}
         </div>
-      </div>
+      </PageContainer>
     </DashboardShell>
   );
 }

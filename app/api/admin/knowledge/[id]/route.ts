@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { knowledgeSchema } from "@/lib/validations/admin";
 import { handleApiError, jsonError } from "@/lib/api-utils";
+import { revalidateByCategory } from "@/lib/adminRevalidate";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -38,6 +39,7 @@ export async function PUT(request: Request, { params }: Params) {
       },
     });
 
+    revalidateByCategory(item.category);
     return NextResponse.json(item);
   } catch (e) {
     return handleApiError(e, "Failed to update knowledge item");
@@ -50,7 +52,9 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
+    const existing = await prisma.knowledgeItem.findUnique({ where: { id } });
     await prisma.knowledgeItem.delete({ where: { id } });
+    if (existing) revalidateByCategory(existing.category);
     return NextResponse.json({ success: true });
   } catch (e) {
     return handleApiError(e, "Failed to delete knowledge item");
