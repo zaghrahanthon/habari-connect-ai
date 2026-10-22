@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
-import { parseResourcePayload } from "@/lib/resource-utils";
+import { indexResourceTextInBackground, parseResourcePayload } from "@/lib/resource-utils";
 import { handleApiError, jsonError } from "@/lib/api-utils";
 import { revalidateByCategory } from "@/lib/adminRevalidate";
 
@@ -14,7 +14,15 @@ export async function PUT(request: Request, { params }: Params) {
   try {
     const { id } = await params;
     const data = await parseResourcePayload(await request.json());
-    const item = await prisma.resource.update({ where: { id }, data });
+    const existing = await prisma.resource.findUnique({ where: { id } });
+    const fileChanged = Boolean(data.fileUrl && data.fileUrl !== existing?.fileUrl);
+    const item = await prisma.resource.update({
+      where: { id },
+      data: fileChanged ? { ...data, extractedText: null } : data,
+    });
+    if (fileChanged || !item.extractedText) {
+      indexResourceTextInBackground(item.id, item.fileUrl);
+    }
     revalidateByCategory(item.category);
     return NextResponse.json(item);
   } catch (e) {

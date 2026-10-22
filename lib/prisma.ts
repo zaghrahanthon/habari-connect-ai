@@ -27,7 +27,10 @@ function isClientReady(client: PrismaClient): boolean {
     typeof client.quickContact !== "undefined" &&
     typeof client.peopleProfile !== "undefined" &&
     typeof client.analyticsProperty !== "undefined" &&
-    typeof client.analyticsReport !== "undefined"
+    typeof client.analyticsReport !== "undefined" &&
+    typeof client.chatInsight !== "undefined" &&
+    typeof client.meetingRoom !== "undefined" &&
+    typeof client.roomBooking !== "undefined"
   );
 }
 

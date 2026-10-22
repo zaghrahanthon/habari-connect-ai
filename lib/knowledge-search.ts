@@ -6,6 +6,14 @@ import {
   PRIVATE_STORAGE_DIR,
   resourceDownloadUrl,
 } from "@/lib/privateStorage";
+import {
+  buildSearchQuery as buildConversationSearchQuery,
+  formatPassagesForPrompt,
+  retrieveRelevant,
+  stripPromptInjection,
+  type RetrievedPassage,
+  type SearchDoc,
+} from "@/lib/chat/retrieval";
 
 export type ChatResource = {
   id: string;
@@ -24,7 +32,13 @@ export type ChatSearchResult = {
   news: Awaited<ReturnType<typeof prisma.newsPost.findMany>>;
   contacts: Awaited<ReturnType<typeof prisma.quickContact.findMany>>;
   terms: string[];
+  passages: RetrievedPassage[];
+  sources: RetrievalSources;
+  bestScore: number;
+  hasVerifiedMatch: boolean;
 };
+
+type RetrievalSources = ReturnType<typeof retrieveRelevant>["sources"];
 
 const PROMPT_TEXT_LIMIT = 12_000;
 const MIN_RESOURCE_SCORE = 4;
@@ -147,8 +161,10 @@ async function enrichResources(resources: ChatResource[]): Promise<ChatResource[
       continue;
     }
 
-    const extractedText = await extractTextFromUpload(resource.fileUrl);
-    enriched.push({ ...resource, extractedText });
+    const extractedText = stripPromptInjection(
+      (await extractTextFromUpload(resource.fileUrl)) ?? "",
+    );
+    enriched.push({ ...resource, extractedText: extractedText || null });
   }
 
   return enriched;
@@ -158,7 +174,8 @@ async function loadResourcesFromDatabase(): Promise<ChatResource[]> {
   return prisma.resource.findMany({
     where: {
       isPublished: true,
-      OR: [{ isAiVisible: true }, { isEmployeeVisible: true }],
+      isAiVisible: true,
+      isEmployeeVisible: true,
       fileUrl: { not: null },
     },
     orderBy: { updatedAt: "desc" },
@@ -186,7 +203,9 @@ async function loadResourcesFromDisk(): Promise<ChatResource[]> {
     if (![".pdf", ".docx", ".txt", ".csv"].includes(ext)) continue;
 
     const fileUrl = `private/${file}`;
-    const extractedText = await extractTextFromUpload(fileUrl);
+    const extractedText = stripPromptInjection(
+      (await extractTextFromUpload(fileUrl)) ?? "",
+    );
     if (!extractedText) continue;
 
     const title = file
@@ -212,20 +231,16 @@ async function loadResourcesFromDisk(): Promise<ChatResource[]> {
 export function buildSearchQuery(
   messages: Array<{ role: string; content: string }>,
 ): string {
-  return messages
-    .filter((m) => m.role === "user")
-    .map((m) => m.content)
-    .slice(-3)
-    .join(" ");
+  return buildConversationSearchQuery(messages);
 }
 
 async function loadAllKnowledgeItems() {
-  // Chat answers from Habari Connect dashboard content only (admin Knowledge).
-  // Include anything published for AI and/or the employee dashboard.
+  // Chat only sees published, AI-visible knowledge — never drafts or admin-only rows.
   return prisma.knowledgeItem.findMany({
     where: {
       isPublished: true,
-      OR: [{ isAiVisible: true }, { isEmployeeVisible: true }],
+      isAiVisible: true,
+      isEmployeeVisible: true,
     },
     orderBy: [{ category: "asc" }, { updatedAt: "desc" }],
   });
@@ -304,35 +319,22 @@ export async function searchKnowledgeForChat(query: string): Promise<ChatSearchR
   let resources: ChatResource[] = [];
   let news: ChatSearchResult["news"] = [];
   let contacts: ChatSearchResult["contacts"] = [];
+  let passages: RetrievedPassage[] = [];
+  let sources: ChatSearchResult["sources"] = [];
+  let bestScore = 0;
+  let hasVerifiedMatch = false;
 
   try {
-    items = sortKnowledgeByRelevance(await loadAllKnowledgeItems(), terms);
+    items = await loadAllKnowledgeItems();
   } catch (error) {
     console.error("Failed to load knowledge items for chat:", error);
   }
 
   try {
     const published = await loadAllPublishedContent();
-    sections = sortByRelevance(published.sections, terms, (s) => [
-      s.title,
-      s.category,
-      s.description ?? "",
-      s.content ?? "",
-    ]);
-    news = sortByRelevance(published.news, terms, (n) => [
-      n.title,
-      n.summary ?? "",
-      n.content,
-      n.category ?? "",
-    ]);
-    contacts = sortByRelevance(published.contacts, terms, (c) => [
-      c.name,
-      c.jobTitle ?? "",
-      c.department ?? "",
-      c.email ?? "",
-      c.phone ?? "",
-      c.office ?? "",
-    ]);
+    sections = published.sections;
+    news = published.news;
+    contacts = published.contacts;
     resources = published.resources;
   } catch (error) {
     console.warn("Failed to load sections/news/contacts for chat:", error);
@@ -342,15 +344,127 @@ export async function searchKnowledgeForChat(query: string): Promise<ChatSearchR
     if (resources.length === 0) {
       resources = await loadResourcesFromDisk();
     }
-
     resources = await enrichResources(resources);
-    resources = selectResourcesForQuery(resources, query, terms);
   } catch (error) {
     console.warn("Failed to load PDF resources for chat:", error);
     resources = [];
   }
 
-  return { items, sections, resources, news, contacts, terms };
+  const docs: SearchDoc[] = [
+    ...items.map((item) => ({
+      id: item.id,
+      kind: "knowledge" as const,
+      title: item.title,
+      category: item.category,
+      text: `${item.title}\n${item.content}`,
+      sourceUrl: item.sourceUrl,
+      published: item.isPublished,
+      aiVisible: item.isAiVisible,
+    })),
+    ...sections.map((section) => ({
+      id: section.id,
+      kind: "section" as const,
+      title: section.title,
+      category: section.category,
+      text: `${section.title}\n${section.description ?? ""}\n${section.content ?? ""}`,
+      published: section.isPublished,
+      aiVisible: true,
+    })),
+    ...news.map((post) => ({
+      id: post.id,
+      kind: "news" as const,
+      title: post.title,
+      category: post.category ?? "News & Updates",
+      text: `${post.title}\n${post.summary ?? ""}\n${post.content}`,
+      published: post.isPublished,
+      aiVisible: true,
+    })),
+    ...contacts.map((contact) => ({
+      id: contact.id,
+      kind: "contact" as const,
+      title: contact.name,
+      category: "Quick Contacts",
+      text: [contact.name, contact.jobTitle, contact.department, contact.email, contact.phone]
+        .filter(Boolean)
+        .join(" "),
+      published: contact.isPublished,
+      aiVisible: true,
+    })),
+    ...resources.map((resource) => ({
+      id: resource.id,
+      kind: "pdf" as const,
+      title: resource.title,
+      category: resource.category,
+      text: `${resource.title}\n${resource.description ?? ""}\n${stripPromptInjection(resource.extractedText ?? "")}`,
+      published: true,
+      aiVisible: true,
+    })),
+  ];
+
+  const retrieved = retrieveRelevant(docs, query);
+  bestScore = retrieved.bestScore;
+  hasVerifiedMatch = retrieved.hasVerifiedMatch;
+
+  if (!hasVerifiedMatch) {
+    const handbookResources = isHandbookQuery(query)
+      ? selectResourcesForQuery(resources, query, terms)
+      : [];
+    return {
+      items: [],
+      sections: [],
+      resources: handbookResources,
+      news: [],
+      contacts: [],
+      terms,
+      passages: [],
+      sources: [],
+      bestScore,
+      hasVerifiedMatch,
+    };
+  }
+
+  passages = retrieved.passages;
+  sources = retrieved.sources;
+
+  const matchedIds = new Set(retrieved.sources.map((source) => `${source.kind}:${source.title}`));
+  items = sortKnowledgeByRelevance(
+    items.filter((item) => matchedIds.has(`knowledge:${item.title}`)),
+    terms,
+  );
+  sections = sortByRelevance(
+    sections.filter((section) => matchedIds.has(`section:${section.title}`)),
+    terms,
+    (s) => [s.title, s.category, s.description ?? "", s.content ?? ""],
+  );
+  news = sortByRelevance(
+    news.filter((post) => matchedIds.has(`news:${post.title}`)),
+    terms,
+    (n) => [n.title, n.summary ?? "", n.content, n.category ?? ""],
+  );
+  contacts = sortByRelevance(
+    contacts.filter((contact) => matchedIds.has(`contact:${contact.name}`)),
+    terms,
+    (c) => [c.name, c.jobTitle ?? "", c.department ?? "", c.email ?? "", c.phone ?? ""],
+  );
+  const retrievedPdfs = resources.filter((resource) =>
+    matchedIds.has(`pdf:${resource.title}`),
+  );
+  resources = isHandbookQuery(query)
+    ? selectResourcesForQuery(resources, query, terms)
+    : retrievedPdfs.slice(0, 3);
+
+  return {
+    items,
+    sections,
+    resources,
+    news,
+    contacts,
+    terms,
+    passages,
+    sources,
+    bestScore,
+    hasVerifiedMatch,
+  };
 }
 
 export function formatKnowledgeForPrompt(
@@ -358,24 +472,32 @@ export function formatKnowledgeForPrompt(
   query = "",
   includeDownloadUrls = false,
 ): string {
-  const { items, sections, resources, news, contacts, terms } = result;
+  const { items, sections, resources, news, contacts, terms, passages } = result;
 
   if (
     items.length === 0 &&
     sections.length === 0 &&
     resources.length === 0 &&
     news.length === 0 &&
-    contacts.length === 0
+    contacts.length === 0 &&
+    passages.length === 0
   ) {
     return "";
   }
 
   const blocks: string[] = [];
 
-  if (items.length > 0) {
+  if (passages.length > 0) {
     blocks.push(
-      `## Knowledge base (all ${items.length} published items — use any item that answers the question)\n\n` +
-        items
+      `## Relevant verified passages (use these first; do not invent extra Habari facts)\n\n${formatPassagesForPrompt(passages)}`,
+    );
+  }
+
+  if (items.length > 0) {
+    const topItems = items.slice(0, 6);
+    blocks.push(
+      `## Knowledge base (top ${topItems.length} matching published items)\n\n` +
+        topItems
           .map(
             (item) =>
               `[Knowledge — ${item.category}] ${item.title}\n${item.content}${item.sourceUrl ? `\nSource: ${item.sourceUrl}` : ""}`,
@@ -473,7 +595,8 @@ export function hasSearchContent(result: ChatSearchResult): boolean {
     result.sections.length > 0 ||
     result.resources.length > 0 ||
     result.news.length > 0 ||
-    result.contacts.length > 0
+    result.contacts.length > 0 ||
+    result.passages.length > 0
   );
 }
 

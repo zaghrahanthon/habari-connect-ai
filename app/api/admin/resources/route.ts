@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
-import { parseResourcePayload } from "@/lib/resource-utils";
+import { indexResourceTextInBackground, parseResourcePayload } from "@/lib/resource-utils";
 import { handleApiError } from "@/lib/api-utils";
 import { revalidateByCategory } from "@/lib/adminRevalidate";
 
@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const data = await parseResourcePayload(body);
     const item = await prisma.resource.create({ data });
+    indexResourceTextInBackground(item.id, item.fileUrl);
     revalidateByCategory(item.category);
     return NextResponse.json(item, { status: 201 });
   } catch (e) {

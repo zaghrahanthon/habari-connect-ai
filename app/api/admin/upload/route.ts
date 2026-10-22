@@ -3,31 +3,29 @@ import path from "path";
 import { requireAdmin } from "@/lib/admin-auth";
 import { requireOfficeNetwork } from "@/lib/networkAccess";
 import { handleApiError, jsonError } from "@/lib/api-utils";
-import { extractTextFromUpload } from "@/lib/file-extract";
-import { writePrivateFile } from "@/lib/privateStorage";
+import {
+  writePrivateFile,
+  writePrivateFileFromStream,
+} from "@/lib/privateStorage";
+import {
+  formatUploadSize,
+  isAllowedUpload,
+  MAX_UPLOAD_BYTES,
+} from "@/lib/uploadLimits";
 
-const ALLOWED_TYPES = [
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "text/csv",
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-];
+export const runtime = "nodejs";
+export const maxDuration = 180;
 
-const ALLOWED_EXTENSIONS = [
-  ".pdf",
-  ".docx",
-  ".xlsx",
-  ".csv",
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".webp",
-];
+function fileTypeFromName(fileName: string, mimeType: string) {
+  const ext = path.extname(fileName).toLowerCase();
+  return ext.replace(".", "") || mimeType || "bin";
+}
 
-// TODO: Production should use S3, Azure Blob Storage, or SharePoint with signed URLs
+function uniqueFileName(fileName: string) {
+  const ext = path.extname(fileName).toLowerCase() || ".bin";
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return `${Date.now()}-${safeName || `upload${ext}`}`;
+}
 
 export async function POST(request: Request) {
   const office = await requireOfficeNetwork("/api/admin/upload");
@@ -37,37 +35,119 @@ export async function POST(request: Request) {
   if (error) return error;
 
   try {
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
+    const contentType = request.headers.get("content-type") ?? "";
 
-    if (!file) {
+    if (contentType.includes("multipart/form-data")) {
+      return handleFormDataUpload(request);
+    }
+
+    const fromQuery = new URL(request.url).searchParams.get("filename")?.trim();
+    const fromHeader = request.headers.get("x-file-name");
+    let fileName = fromQuery || "upload.bin";
+    if (!fromQuery && fromHeader) {
+      try {
+        fileName = decodeURIComponent(fromHeader).trim() || "upload.bin";
+      } catch {
+        fileName = fromHeader.trim() || "upload.bin";
+      }
+    }
+    const mimeType = contentType.split(";")[0]?.trim() ?? "";
+    const contentLength = Number(request.headers.get("content-length") ?? "NaN");
+
+    if (contentLength === 0) {
       return jsonError("No file provided", 400);
     }
 
-    const ext = path.extname(file.name).toLowerCase();
-    if (
-      !ALLOWED_EXTENSIONS.includes(ext) &&
-      !ALLOWED_TYPES.includes(file.type)
-    ) {
-      return jsonError("File type not allowed", 400);
+    if (Number.isFinite(contentLength) && contentLength > MAX_UPLOAD_BYTES) {
+      return jsonError(
+        `File is too large. Maximum size is ${formatUploadSize(MAX_UPLOAD_BYTES)}.`,
+        413,
+      );
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const filename = `${Date.now()}-${safeName}`;
-    const saved = await writePrivateFile(filename, buffer);
+    if (!isAllowedUpload(fileName, mimeType)) {
+      return jsonError("File type not allowed. Upload a PDF, Word, Excel, CSV, or image file.", 400);
+    }
 
-    const fileType = ext.replace(".", "") || file.type;
-    const extractedText = await extractTextFromUpload(saved.fileUrl);
+    if (!request.body) {
+      return jsonError("No file provided", 400);
+    }
+
+    const saved = await writePrivateFileFromStream(
+      uniqueFileName(fileName),
+      request.body,
+      MAX_UPLOAD_BYTES,
+    );
 
     return NextResponse.json({
       fileUrl: saved.fileUrl,
-      fileType,
+      fileType: fileTypeFromName(fileName, mimeType),
       filename: saved.filename,
-      extractedText,
+      extractedText: null,
     });
   } catch (e) {
-    return handleApiError(e, "Upload failed");
+    return handleUploadError(e);
   }
+}
+
+async function handleFormDataUpload(request: Request) {
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return jsonError(
+      `The file could not be read. Use a PDF or document under ${formatUploadSize(MAX_UPLOAD_BYTES)}.`,
+      413,
+    );
+  }
+
+  const file = formData.get("file");
+  if (
+    !file ||
+    typeof file !== "object" ||
+    typeof (file as Blob).arrayBuffer !== "function" ||
+    typeof (file as Blob).size !== "number" ||
+    (file as Blob).size === 0
+  ) {
+    return jsonError("No file provided", 400);
+  }
+
+  const blob = file as Blob & { name?: string; type: string };
+  const fileName = blob.name?.trim() || "upload.bin";
+
+  if (blob.size > MAX_UPLOAD_BYTES) {
+    return jsonError(
+      `File is too large. Maximum size is ${formatUploadSize(MAX_UPLOAD_BYTES)}.`,
+      413,
+    );
+  }
+
+  if (!isAllowedUpload(fileName, blob.type)) {
+    return jsonError("File type not allowed. Upload a PDF, Word, Excel, CSV, or image file.", 400);
+  }
+
+  const bytes = await blob.arrayBuffer();
+  const saved = await writePrivateFile(uniqueFileName(fileName), Buffer.from(bytes));
+
+  return NextResponse.json({
+    fileUrl: saved.fileUrl,
+    fileType: fileTypeFromName(fileName, blob.type),
+    filename: saved.filename,
+    extractedText: null,
+  });
+}
+
+function handleUploadError(e: unknown) {
+  console.error("Admin upload failed:", e);
+  if (e instanceof Error && e.message === "FILE_TOO_LARGE") {
+    return jsonError(
+      `File is too large. Maximum size is ${formatUploadSize(MAX_UPLOAD_BYTES)}.`,
+      413,
+    );
+  }
+  const message =
+    e instanceof Error && /enospc|eacces|eperm/i.test(e.message)
+      ? "The server could not save the file. Check storage permissions and disk space."
+      : "Upload failed. Please try a smaller PDF or try again.";
+  return handleApiError(e, message);
 }

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { LEAVE_BASELINE, LEAVE_GUIDANCE } from "@/lib/knowledge";
 import {
   buildSearchQuery,
   formatKnowledgeForPrompt,
@@ -18,61 +17,11 @@ import { getAnalyticsContextForChat } from "@/lib/analyticsAi";
 import { todayDateString } from "@/lib/calendar/dateUtils";
 import { requireOfficeNetwork } from "@/lib/networkAccess";
 import { checkAiRateLimit } from "@/lib/aiRateLimit";
-
-const BASE_INSTRUCTIONS = `You are Habari Connect AI, an internal employee assistant for Habari Media.
-
-Always answer in a friendly, clear, professional way.
-
-Employees are not individually authenticated. Never assume the user’s real identity from a display name or greeting. Do not discuss personal payslips, individual leave balances, private HR cases, or personal approvals.
-TODO: Personal or confidential functionality requires individual authentication.
-
-CRITICAL — source of truth:
-- Answer ONLY from Habari Connect dashboard content provided below (Knowledge, Sections, News, Quick contacts, PDFs), published People & Culture profiles when supplied, live Google Analytics data when supplied, and, when supplied, live company calendar data.
-- Do NOT use the public internet or habarimedia.com. Do NOT invent facts outside the provided content.
-- NEVER invent names, emails, phone numbers, URLs, procedures, events, locations, organisers, registration links, dates, times, traffic, users, sessions, page views, engagement rates, or conversions.
-- Do NOT add generic steps unless they are explicitly written in the admin content below.
-- If dashboard, people, analytics, or calendar content below answers the question, quote or paraphrase it only — do not expand with assumed details.
-
-People & Culture rules (when people profiles are supplied):
-- Only use published People & Culture profiles from the context below.
-- Never invent colleagues, managers, departments, or contact details.
-- Do not mention birthdays unless they appear in the supplied context.
-- Do not discuss salary, leave balances, disciplinary matters, or private HR information.
-- If no matching person is available, say you could not find that person in the published People & Culture profiles.
-
-Google Analytics rules (when analytics data is supplied):
-- Analyse only the supplied Google Analytics data.
-- Never invent traffic, user, engagement, page-view or conversion values.
-- Clearly distinguish facts from interpretation.
-- When comparing periods, state absolute values and percentage difference when available.
-- If requested information was not returned by Google Analytics, say it is not available in the current report.
-
-Calendar rules (when calendar information is supplied):
-- Use Africa/Johannesburg as the company timezone.
-- Clearly distinguish between today, tomorrow, this week, and future dates.
-- Include the event date, time, and location when available.
-- Company calendar information is sourced from the live Habari company calendar.
-- If no matching event is available, say exactly: "I couldn’t find a matching event in the current Habari company calendar."
-
-How to format replies:
-- Search ALL Knowledge items for every question and answer from any matching item.
-- Search Quick contacts when the user asks who to email, call, or contact.
-- Search People & Culture profiles for questions about staff, teams, departments, offices, new starters, or roles.
-- Use Google Analytics context for website traffic, channels, pages, devices, and performance questions.
-- Search Sections, News, and PDF excerpts when they match the question.
-- Use live calendar context for event/date/schedule questions.
-- Only use Employee Handbook / PDF content when the question is about policies, procedures, HR rules, or when the user explicitly mentions the handbook.
-- Do NOT mention or summarize the employee handbook for general company questions unless handbook content is directly relevant.
-- For leave questions, include the Axiopay link once: ${LEAVE_GUIDANCE.url}
-- Do NOT include file download links in your reply unless the user explicitly asked to download a document.
-
-If matching content is provided below, use it as your primary source.
-
-Only if nothing relevant is provided below, the leave baseline does not cover the question, and no calendar, people, or analytics context applies, respond exactly with:
-"I don't have that information in the Habari Connect knowledge base yet. You can ask an admin to add it."
-
-Leave baseline (only when leave is asked and not covered in admin content below):
-${LEAVE_BASELINE}`;
+import { classifyIntent } from "@/lib/chat/intent";
+import { buildHybridSystemPrompt, decideResponseMode } from "@/lib/chat/hybrid";
+import { suggestFollowUps } from "@/lib/chat/followups";
+import { insightOutcome, sanitizeInsightTopic } from "@/lib/chat/sanitizeInsight";
+import { recordChatInsight } from "@/lib/chat/insights";
 
 type ChatRequestMessage = {
   role: "user" | "assistant";
@@ -126,11 +75,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Employee chat is anonymous office-network access — no conversation persistence in MVP.
-    // TODO: Optional anonymous HTTP-only conversation cookie if history is required later.
+    const lastUserMessage =
+      [...messages].reverse().find((message) => message.role === "user")
+        ?.content ?? "";
+    const priorUserMessages = messages
+      .filter((message) => message.role === "user")
+      .slice(0, -1)
+      .map((message) => message.content);
 
     const searchQuery = buildSearchQuery(messages);
-    const offerDownloads = shouldOfferDownloads(searchQuery);
+    const intent = classifyIntent(lastUserMessage, priorUserMessages);
+    const offerDownloads = shouldOfferDownloads(lastUserMessage || searchQuery);
 
     const [searchResult, calendarContext, peopleContext, analyticsContext] =
       await Promise.all([
@@ -140,9 +95,9 @@ export async function POST(request: Request) {
         getAnalyticsContextForChat(searchQuery),
       ]);
 
-    if (searchResult.items.length === 0) {
+    if (searchResult.items.length === 0 && searchResult.passages.length === 0) {
       console.warn(
-        "Chat: 0 knowledge items loaded — check DATABASE_URL and restart npm run dev",
+        "Chat: 0 matching knowledge passages — check DATABASE_URL if articles were expected",
       );
     }
 
@@ -156,40 +111,33 @@ export async function POST(request: Request) {
       ? formatResourceAttachments(searchResult.resources)
       : [];
 
-    const contentLoaded =
-      hasSearchContent(searchResult) ||
-      calendarContext.relevant ||
-      peopleContext.relevant ||
-      analyticsContext.relevant;
-    const pdfLoaded = hasPdfContent(searchResult);
+    const extras = [
+      peopleContext.relevant ? peopleContext.context : "",
+      analyticsContext.relevant ? analyticsContext.context : "",
+      calendarContext.relevant
+        ? `${calendarContext.context}\nCurrent company date (Africa/Johannesburg): ${todayDateString()}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
 
-    const knowledgeHeader =
-      searchResult.items.length > 0
-        ? `Knowledge base (${searchResult.items.length} published items — search ALL items below and answer from any that match; do NOT say information is unavailable if a Knowledge item answers the question):`
-        : contentLoaded
-          ? "Relevant published content from Habari Connect (use the section that matches the user's question):"
-          : "No matching published content was found.";
+    const mode = decideResponseMode({
+      intent,
+      hasVerifiedMatch: searchResult.hasVerifiedMatch,
+      hasAnyInternalHit: hasSearchContent(searchResult),
+    });
 
     const handbookNote =
-      pdfLoaded && !isHandbookQuery(searchQuery)
-        ? "\nNote: PDF handbook excerpts are included only because they matched the question — do not bring up the handbook if the question is about something else."
+      hasPdfContent(searchResult) && !isHandbookQuery(searchQuery)
+        ? "PDF excerpts matched this question. Use them only if they are relevant."
         : "";
 
-    const calendarBlock = calendarContext.relevant
-      ? `\n\n${calendarContext.context}\n\nCurrent company date (Africa/Johannesburg): ${todayDateString()}`
-      : "";
-
-    const peopleBlock = peopleContext.relevant
-      ? `\n\n${peopleContext.context}`
-      : "";
-
-    const analyticsBlock = analyticsContext.relevant
-      ? `\n\n${analyticsContext.context}`
-      : "";
-
-    const systemPrompt = contentLoaded
-      ? `${BASE_INSTRUCTIONS}${handbookNote}\n\n${knowledgeHeader}\n${dbKnowledge}${peopleBlock}${analyticsBlock}${calendarBlock}`
-      : `${BASE_INSTRUCTIONS}\n\nNo matching published content was found. Use baseline rules only, or say the information is not available yet.`;
+    const systemPrompt = buildHybridSystemPrompt({
+      mode,
+      intent,
+      verifiedBlock: [dbKnowledge, handbookNote].filter(Boolean).join("\n\n"),
+      extrasBlock: extras,
+    });
 
     const openai = new OpenAI({ apiKey });
 
@@ -197,20 +145,25 @@ export async function POST(request: Request) {
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
-        ...messages.map((m) => ({
-          role: m.role as "user" | "assistant",
-          content: m.content,
+        ...messages.slice(-12).map((message) => ({
+          role: message.role as "user" | "assistant",
+          content: message.content,
         })),
       ],
-      temperature: contentLoaded ? 0.3 : 0.7,
-      max_tokens: 1024,
+      temperature:
+        mode === "internal_verified" ||
+        intent === "security" ||
+        intent === "hr_policy"
+          ? 0.2
+          : 0.5,
+      max_tokens: 1200,
     });
 
     const reply = completion.choices[0]?.message?.content;
 
     if (!reply) {
       return NextResponse.json(
-        { error: "No response from AI." },
+        { error: "No response from AI. Please try again." },
         { status: 500 },
       );
     }
@@ -221,9 +174,33 @@ export async function POST(request: Request) {
       offerDownloads,
     );
 
+    const followUps = suggestFollowUps({
+      intent,
+      mode,
+      sourceTitles: searchResult.sources.map((source) => source.title),
+    });
+
+    const sources = searchResult.sources.slice(0, 5).map((source) => ({
+      title: source.title,
+      category: source.category,
+      kind: source.kind,
+      sourceUrl: source.sourceUrl ?? undefined,
+    }));
+
+    const outcome = insightOutcome(mode, searchResult.hasVerifiedMatch);
+    void recordChatInsight({
+      intent,
+      topic: sanitizeInsightTopic(lastUserMessage),
+      outcome,
+      missingArea: mode === "company_missing" ? intent : null,
+    });
+
     return NextResponse.json({
       message,
       attachments: attachments.length > 0 ? attachments : undefined,
+      followUps,
+      sources: sources.length > 0 ? sources : undefined,
+      mode,
     });
   } catch (error) {
     console.error("Chat API error:", error);
@@ -231,7 +208,7 @@ export async function POST(request: Request) {
     const message =
       error instanceof Error && error.message.includes("API key")
         ? "OpenAI API key is invalid. Check OPENAI_API_KEY in your .env file."
-        : "Failed to generate response. Please try again.";
+        : "I couldn’t reach the AI service just now. Please try again in a moment.";
 
     return NextResponse.json({ error: message }, { status: 500 });
   }

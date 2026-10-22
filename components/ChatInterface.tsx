@@ -14,11 +14,20 @@ export type ChatAttachment = {
   fileType?: string | null;
 };
 
+export type ChatSource = {
+  title: string;
+  category: string;
+  kind?: string;
+  sourceUrl?: string;
+};
+
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
   attachments?: ChatAttachment[];
+  sources?: ChatSource[];
+  followUps?: string[];
 };
 
 type ChatInterfaceProps = {
@@ -33,6 +42,9 @@ function MessageContent({ content }: { content: string }) {
   return (
     <div className="chat-markdown space-y-3 text-[15px] leading-relaxed">
       <ReactMarkdown
+        urlTransform={(url) => (isSafeChatLink(url) ? url : "")}
+        disallowedElements={["img", "iframe", "script", "object", "embed", "form"]}
+        unwrapDisallowed
         components={{
           p: ({ children }) => <p className="m-0">{children}</p>,
           strong: ({ children }) => (
@@ -55,6 +67,11 @@ function MessageContent({ content }: { content: string }) {
           h3: ({ children }) => (
             <h4 className="m-0 text-sm font-semibold text-foreground">{children}</h4>
           ),
+          blockquote: ({ children }) => (
+            <blockquote className="m-0 border-l-2 border-accent/40 pl-3 text-muted">
+              {children}
+            </blockquote>
+          ),
           a: ({ href, children }) => {
             const url = href ?? "";
             if (!isSafeChatLink(url)) {
@@ -64,8 +81,8 @@ function MessageContent({ content }: { content: string }) {
             return (
               <a
                 href={url}
-                target="_blank"
-                rel="noopener noreferrer"
+                target={isExternal ? "_blank" : undefined}
+                rel={isExternal ? "noopener noreferrer" : undefined}
                 className="inline-flex items-center gap-1 font-medium text-accent underline underline-offset-2 hover:text-accent-hover"
               >
                 {children}
@@ -77,6 +94,11 @@ function MessageContent({ content }: { content: string }) {
             <code className="rounded bg-background/80 px-1.5 py-0.5 text-[13px]">
               {children}
             </code>
+          ),
+          pre: ({ children }) => (
+            <pre className="overflow-x-auto rounded-lg bg-background/80 p-3 text-[13px]">
+              {children}
+            </pre>
           ),
           hr: () => <hr className="border-border" />,
         }}
@@ -143,11 +165,16 @@ export default function ChatInterface({
       const data = (await response.json()) as {
         message?: string;
         attachments?: ChatAttachment[];
+        followUps?: string[];
+        sources?: ChatSource[];
         error?: string;
       };
 
       if (!response.ok) {
-        throw new Error(data.error ?? "Something went wrong. Please try again.");
+        throw new Error(
+          data.error ??
+            "I couldn’t complete that just now. Please try again in a moment.",
+        );
       }
 
       setMessages((prev) => [
@@ -157,11 +184,15 @@ export default function ChatInterface({
           role: "assistant",
           content: data.message ?? "I could not generate a response.",
           attachments: data.attachments,
+          followUps: data.followUps,
+          sources: data.sources,
         },
       ]);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to send message.";
+        err instanceof Error
+          ? err.message
+          : "I couldn’t reach Habari Connect AI. Please try again.";
       setError(message);
     } finally {
       setIsLoading(false);
@@ -253,6 +284,36 @@ export default function ChatInterface({
                         ))}
                       </div>
                     )}
+
+                    {message.sources && message.sources.length > 0 && (
+                      <div className="mt-3 border-t border-border/70 pt-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                          Sources
+                        </p>
+                        <ul className="mt-1 space-y-1">
+                          {message.sources.map((source) => (
+                            <li
+                              key={`${source.kind ?? "doc"}-${source.title}`}
+                              className="text-xs text-muted"
+                            >
+                              {source.sourceUrl && isSafeChatLink(source.sourceUrl) ? (
+                                <a
+                                  href={source.sourceUrl}
+                                  className="text-accent underline underline-offset-2 hover:text-accent-hover"
+                                >
+                                  {source.title}
+                                </a>
+                              ) : (
+                                <span>{source.title}</span>
+                              )}
+                              {source.category ? (
+                                <span className="text-muted/80"> · {source.category}</span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -265,6 +326,23 @@ export default function ChatInterface({
                   </div>
                 </div>
               )}
+
+              {!isLoading &&
+                messages[messages.length - 1]?.role === "assistant" &&
+                (messages[messages.length - 1].followUps?.length ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-2 pl-1">
+                    {messages[messages.length - 1].followUps!.map((prompt) => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        onClick={() => void sendMessage(prompt)}
+                        className="rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted transition-colors hover:border-accent/40 hover:text-foreground"
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
               <div ref={messagesEndRef} />
             </div>

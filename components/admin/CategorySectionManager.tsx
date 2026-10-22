@@ -9,6 +9,10 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import DocumentUploadForm, {
+  emptyDocumentForm,
+  type DocumentFormState,
+} from "@/components/admin/DocumentUploadForm";
 
 type KnowledgeItem = {
   id: string;
@@ -93,6 +97,10 @@ export default function CategorySectionManager({
   const [showSectionForm, setShowSectionForm] = useState(false);
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const [sectionForm, setSectionForm] = useState(sectionEmpty);
+  const [showDocForm, setShowDocForm] = useState(false);
+  const [docForm, setDocForm] = useState<DocumentFormState>(
+    emptyDocumentForm(category),
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -752,19 +760,39 @@ export default function CategorySectionManager({
                 section
               </p>
             </div>
-            <a
-              href="/admin/resources"
-              className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium hover:bg-card-hover"
+            <button
+              type="button"
+              onClick={() => {
+                setDocForm(emptyDocumentForm(category));
+                setShowDocForm(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover"
             >
-              Open Resources library
-            </a>
+              <Plus className="h-4 w-4" />
+              Upload PDF
+            </button>
           </div>
-          {resources.length === 0 ? (
+          {showDocForm ? (
+            <DocumentUploadForm
+              form={docForm}
+              setForm={setDocForm}
+              editingId={null}
+              onCancel={() => setShowDocForm(false)}
+              onSaved={() => {
+                setShowDocForm(false);
+                setDocForm(emptyDocumentForm(category));
+                flash("Document uploaded");
+                void load();
+              }}
+            />
+          ) : null}
+          {resources.length === 0 && !showDocForm ? (
             <EmptyAdmin
               label="No documents linked to this section yet."
-              actionLabel="Upload in Resources"
+              actionLabel="Upload PDF"
               onAction={() => {
-                window.location.href = "/admin/resources";
+                setDocForm(emptyDocumentForm(category));
+                setShowDocForm(true);
               }}
             />
           ) : (

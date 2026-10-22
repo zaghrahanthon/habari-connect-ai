@@ -5,7 +5,8 @@ import AdminShell from "@/components/admin/AdminShell";
 import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
 import { PublishBadge, VisibilityBadges } from "@/components/admin/StatusBadge";
 import { KNOWLEDGE_CATEGORIES } from "@/lib/categories";
-import { Pencil, Plus, Trash2, Upload } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
+import FileUploadControl from "@/components/admin/FileUploadControl";
 
 type Resource = {
   id: string;
@@ -44,31 +45,6 @@ export default function AdminResourcesPage() {
   useEffect(() => {
     load();
   }, []);
-
-  const uploadFile = async (file: File) => {
-    setUploading(true);
-    setSaveError("");
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
-    const data = await res.json();
-    setUploading(false);
-
-    if (!res.ok) {
-      setSaveError(data.error ?? "Upload failed");
-      return;
-    }
-
-    if (data.fileUrl) {
-      setForm((f) => ({
-        ...f,
-        fileUrl: data.fileUrl,
-        fileType: data.fileType,
-        extractedText: data.extractedText ?? f.extractedText,
-        title: f.title || file.name.replace(/\.[^.]+$/, ""),
-      }));
-    }
-  };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,26 +149,24 @@ export default function AdminResourcesPage() {
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               className="w-full rounded-xl border border-border bg-background px-4 py-2 text-sm"
             />
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm hover:bg-card-hover">
-                <Upload className="h-4 w-4" />
-                {uploading ? "Uploading…" : "Choose file"}
-                <input
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.docx,.xlsx,.csv,.png,.jpg,.jpeg,.webp"
-                  onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])}
-                />
-              </label>
-              {form.fileUrl && (
-                <span className="text-xs text-muted">
-                  {form.fileUrl}
-                  {form.extractedText
-                    ? ` · ${form.extractedText.length.toLocaleString()} chars indexed for AI`
-                    : " · text not extracted (images only or unsupported format)"}
-                </span>
-              )}
-            </div>
+            <FileUploadControl
+              readyHint={
+                form.fileUrl
+                  ? `${form.fileUrl} · the chatbot will index it after you save.`
+                  : null
+              }
+              onBusyChange={setUploading}
+              onError={setSaveError}
+              onUploaded={({ file, fileUrl, fileType, extractedText }) => {
+                setForm((current) => ({
+                  ...current,
+                  fileUrl,
+                  fileType: fileType || file.name.split(".").pop() || "",
+                  extractedText: extractedText ?? "",
+                  title: current.title || file.name.replace(/\.[^.]+$/, ""),
+                }));
+              }}
+            />
             <div className="flex flex-wrap gap-4 text-sm">
               <label className="flex items-center gap-2">
                 <input
@@ -223,7 +197,11 @@ export default function AdminResourcesPage() {
               <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{saveError}</p>
             )}
             <div className="flex gap-2">
-              <button type="submit" className="rounded-xl bg-accent px-4 py-2 text-sm text-white">
+              <button
+                type="submit"
+                disabled={uploading}
+                className="rounded-xl bg-accent px-4 py-2 text-sm text-white disabled:opacity-50"
+              >
                 Save
               </button>
               <button

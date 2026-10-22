@@ -6,11 +6,30 @@ export type ChatAttachment = {
 
 /** Only allow links we can actually serve */
 export function isSafeChatLink(url: string): boolean {
+  const trimmed = url?.trim() ?? "";
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+  if (
+    lower.startsWith("javascript:") ||
+    lower.startsWith("data:") ||
+    lower.startsWith("vbscript:") ||
+    lower.startsWith("file:")
+  ) {
+    return false;
+  }
+  if (trimmed.startsWith("/admin") || trimmed.startsWith("/api/auth")) {
+    return false;
+  }
   return (
-    url.startsWith("/api/resources/") ||
-    url.startsWith("/uploads/") ||
-    url.startsWith("http://") ||
-    url.startsWith("https://")
+    trimmed.startsWith("/api/resources/") ||
+    trimmed.startsWith("/uploads/") ||
+    trimmed.startsWith("/dashboard") ||
+    trimmed.startsWith("/profile") ||
+    trimmed.startsWith("/settings") ||
+    trimmed.startsWith("/chat") ||
+    trimmed.startsWith("/onboarding") ||
+    lower.startsWith("http://") ||
+    lower.startsWith("https://")
   );
 }
 

@@ -1,5 +1,9 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { createWriteStream } from "fs";
+import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
+import { Readable, Transform } from "stream";
+import { pipeline } from "stream/promises";
+import type { ReadableStream as NodeWebReadableStream } from "stream/web";
 
 /** Private employee documents — not served from /public. */
 export const PRIVATE_STORAGE_DIR = path.join(process.cwd(), "storage", "private");
@@ -46,11 +50,61 @@ export async function ensurePrivateStorageDir() {
   await mkdir(PRIVATE_STORAGE_DIR, { recursive: true });
 }
 
+function safeStorageName(filename: string): string {
+  return path.basename(filename.replace(/[^a-zA-Z0-9._-]/g, "_"));
+}
+
 export async function writePrivateFile(filename: string, buffer: Buffer) {
   await ensurePrivateStorageDir();
-  const safe = path.basename(filename.replace(/[^a-zA-Z0-9._-]/g, "_"));
+  const safe = safeStorageName(filename);
   const filepath = path.join(PRIVATE_STORAGE_DIR, safe);
   await writeFile(filepath, buffer);
+  return { filename: safe, fileUrl: toPrivateFileRef(safe), filepath };
+}
+
+class LimitedByteStream extends Transform {
+  private bytes = 0;
+
+  constructor(private readonly maxBytes: number) {
+    super();
+  }
+
+  override _transform(
+    chunk: Buffer,
+    _encoding: BufferEncoding,
+    callback: (error?: Error | null, data?: Buffer) => void,
+  ) {
+    this.bytes += chunk.length;
+    if (this.bytes > this.maxBytes) {
+      callback(new Error("FILE_TOO_LARGE"));
+      return;
+    }
+    callback(null, chunk);
+  }
+}
+
+/** Stream an upload to disk so large PDFs are not fully buffered in memory. */
+export async function writePrivateFileFromStream(
+  filename: string,
+  body: ReadableStream<Uint8Array>,
+  maxBytes: number,
+) {
+  await ensurePrivateStorageDir();
+  const safe = safeStorageName(filename);
+  if (!safe) {
+    throw new Error("Invalid filename");
+  }
+  const filepath = path.join(PRIVATE_STORAGE_DIR, safe);
+  try {
+    await pipeline(
+      Readable.fromWeb(body as NodeWebReadableStream<Uint8Array>),
+      new LimitedByteStream(maxBytes),
+      createWriteStream(filepath),
+    );
+  } catch (error) {
+    await unlink(filepath).catch(() => undefined);
+    throw error;
+  }
   return { filename: safe, fileUrl: toPrivateFileRef(safe), filepath };
 }
 

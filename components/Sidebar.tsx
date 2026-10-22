@@ -87,6 +87,7 @@ const NAV_GROUPS: { label?: string; items: NavItem[] }[] = [
         href: "/dashboard/analytics",
         icon: ChartNoAxesCombined,
       },
+      { label: "Book a Boardroom", href: "/dashboard/bookings", icon: Calendar },
       { label: "IT Support", href: "/dashboard/it-support", icon: Headphones },
       { label: "HR", href: "/dashboard/hr", icon: Users },
       { label: "Policies", href: "/dashboard/policies", icon: Shield },

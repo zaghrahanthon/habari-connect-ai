@@ -28,6 +28,8 @@ function isEmployeeProtectedPath(pathname: string): boolean {
   if (pathname === "/profile" || pathname.startsWith("/profile/")) return true;
   if (pathname === "/settings" || pathname.startsWith("/settings/")) return true;
   if (pathname === "/api/chat") return true;
+  if (pathname === "/api/bookings" || pathname.startsWith("/api/bookings/")) return true;
+  if (pathname === "/api/rooms") return true;
   if (pathname.startsWith("/api/calendar/")) return true;
   if (pathname === "/api/contacts") return true;
   if (pathname.startsWith("/api/people-culture")) return true;
@@ -63,8 +65,20 @@ function denyOfficeNetwork(request: NextRequest, pathname: string) {
   return withSecurityHeaders(NextResponse.redirect(url));
 }
 
+function isFileUploadPath(pathname: string): boolean {
+  return (
+    pathname === "/api/admin/upload" ||
+    pathname === "/api/admin/people-culture/upload"
+  );
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // File uploads must skip this matcher-buffered path; auth is in the route.
+  if (isFileUploadPath(pathname)) {
+    return NextResponse.next();
+  }
 
   if (
     pathname === "/" ||
@@ -154,6 +168,9 @@ export const config = {
     "/auth/:path*",
     "/uploads/:path*",
     "/api/chat",
+    "/api/bookings",
+    "/api/bookings/:path*",
+    "/api/rooms",
     "/api/calendar/:path*",
     "/api/contacts",
     "/api/people-culture",
@@ -163,7 +180,7 @@ export const config = {
     "/api/resources/:path*",
     "/admin",
     "/admin/:path*",
-    "/api/admin/:path*",
+    "/api/admin/((?!upload$).*)",
   ],
 };
 

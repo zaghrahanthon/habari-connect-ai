@@ -5,8 +5,10 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   BookOpen,
+  Calendar,
   LayoutDashboard,
   Layers,
+  Lightbulb,
   LogOut,
   Menu,
   Network,
@@ -28,6 +30,8 @@ type NavItem = {
 
 const SYSTEM_NAV: NavItem[] = [
   { label: "Knowledge Base", href: "/admin/knowledge", icon: BookOpen },
+  { label: "Boardroom Bookings", href: "/admin/bookings", icon: Calendar },
+  { label: "AI Insights", href: "/admin/insights", icon: Lightbulb },
   { label: "All Content Blocks", href: "/admin/sections", icon: Layers },
   { label: "Users / Admins", href: "/admin/users", icon: Users },
   { label: "Network Access", href: "/admin/network-access", icon: Network },
